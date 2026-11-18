@@ -1,5 +1,10 @@
 // Prisma şema dosyası.
-// Modeller sonraki aşamada bu dosyaya eklenecek.
+//
+// Notlar:
+// - Tüm tutarlar tek para birimi (TRY) üzerindendir.
+// - Finansal değerler Decimal(18,2) olarak tutulur; Float kullanılmaz.
+// - Prisma'nın ifade edemediği CHECK constraint'leri migration SQL'inde
+//   tanımlıdır (bkz. prisma/migrations/*_init_financial_schema).
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +13,80 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  ACTIVE
+  PASSIVE
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Customer {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName String   @map("first_name") @db.VarChar(100)
+  lastName  String   @map("last_name") @db.VarChar(100)
+  email     String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  accounts Account[]
+
+  @@map("customers")
+}
+
+model Account {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId    String        @map("customer_id") @db.Uuid
+  accountNumber String        @unique @map("account_number") @db.VarChar(34)
+  // CHECK (balance >= 0) migration'da tanımlıdır.
+  balance       Decimal       @default(0) @db.Decimal(18, 2)
+  status        AccountStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Restrict: hesabı olan müşteri silinemez.
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  outgoingTransactions Transaction[] @relation("SourceAccount")
+  incomingTransactions Transaction[] @relation("TargetAccount")
+
+  @@index([customerId])
+  @@map("accounts")
+}
+
+model Transaction {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionNumber String            @unique @map("transaction_number") @db.VarChar(64)
+  sourceAccountId   String?           @map("source_account_id") @db.Uuid
+  targetAccountId   String?           @map("target_account_id") @db.Uuid
+  // CHECK (amount > 0) migration'da tanımlıdır.
+  amount            Decimal           @db.Decimal(18, 2)
+  type              TransactionType
+  status            TransactionStatus @default(PENDING)
+  failureReason     String?           @map("failure_reason") @db.VarChar(500)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // Restrict: işlem geçmişi olan hesap silinemez, geçmiş korunur.
+  sourceAccount Account? @relation("SourceAccount", fields: [sourceAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetAccount Account? @relation("TargetAccount", fields: [targetAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  // Hesap bazlı işlem geçmişi (tarih aralığı ile). FK sorgularını da karşılar.
+  @@index([sourceAccountId, createdAt])
+  @@index([targetAccountId, createdAt])
+  // Genel tarih aralığı sorguları.
+  @@index([createdAt])
+  // Duruma göre filtreleme (ör. bekleyen işlemler) + tarih sıralaması.
+  @@index([status, createdAt])
+  @@map("transactions")
 }
