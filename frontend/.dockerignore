@@ -1,0 +1,17 @@
+# Bağımlılıklar ve derleme çıktıları imaj içinde yeniden oluşturulur.
+node_modules
+.next
+out
+build
+coverage
+
+# Ortam değişkenleri imaja girmez; API adresi build argümanı olarak verilir.
+.env
+.env.*
+
+# Geliştirme ve editör dosyaları.
+README.md
+AGENTS.md
+*.log
+*.tsbuildinfo
+.vercel

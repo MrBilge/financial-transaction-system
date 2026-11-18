@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { PageBreadcrumb } from "@/components/PageBreadcrumb";
-
 import { Content } from "./Content";
 
 export const metadata: Metadata = {
@@ -11,18 +9,7 @@ export const metadata: Metadata = {
 // Müşteri ID'si Content içinde useParams ile okunur; veriler tarayıcıda
 // oturum token'ı ile yüklendiği için sayfa sunucuda veri çekmez.
 const CustomerDetailPage = () => {
-  return (
-    <>
-      <PageBreadcrumb
-        items={[
-          { label: "Genel Bakış", href: "/" },
-          { label: "Müşteriler", href: "/customers" },
-          { label: "Müşteri Detayı" },
-        ]}
-      />
-      <Content />
-    </>
-  );
+  return <Content />;
 };
 
 export default CustomerDetailPage;

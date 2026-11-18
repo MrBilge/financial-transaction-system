@@ -1,3 +1,11 @@
+# Tüm sistemi çalıştırır: PostgreSQL + Prisma migration + NestJS backend + Next.js frontend.
+#   docker compose up --build
+# Değişkenler proje kök dizinindeki .env dosyasından okunur (bkz. .env.example).
+#
+# Başlatma sırası: postgres (sağlıklı) -> migrate (başarıyla biter) -> backend
+# (sağlıklı) -> frontend. Servisler Compose'un varsayılan ağı üzerinden servis
+# adlarıyla (ör. "postgres") birbirine ulaşır.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +25,76 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Bekleyen Prisma migration'larını uygular ve çıkar. "migrate deploy" yalnızca
+  # henüz uygulanmamış migration'ları çalıştırır; mevcut verileri silmez.
+  migrate:
+    build:
+      context: ./backend
+      target: build
+    image: financial-transaction-system-migrate
+    container_name: fts-migrate
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  backend:
+    build:
+      context: ./backend
+      target: production
+    image: financial-transaction-system-backend
+    container_name: fts-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      # Tarayıcıdaki frontend adresi (CORS izni).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-3000}}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET .env dosyasında tanımlanmalıdır}
+      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-3600}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH .env dosyasında tanımlanmalıdır}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
+    ports:
+      - '${BACKEND_PORT:-3001}:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # GET / herkese açık, veritabanına dokunmayan basit bir yanıttır.
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3001/ || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Tarayıcı backend'e bu adresle ulaşır (Docker ağı içindeki servis adı değil).
+        # Değer build sırasında koda gömülür; değişirse imaj yeniden derlenmelidir.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${BACKEND_PORT:-3001}}
+    image: financial-transaction-system-frontend
+    container_name: fts-frontend
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-3000}:3000'
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   postgres_data:

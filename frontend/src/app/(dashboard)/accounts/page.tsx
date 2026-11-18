@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { PageBreadcrumb } from "@/components/PageBreadcrumb";
-
 import { Content } from "./Content";
 
 export const metadata: Metadata = {
@@ -9,14 +7,7 @@ export const metadata: Metadata = {
 };
 
 const AccountsPage = () => {
-  return (
-    <>
-      <PageBreadcrumb
-        items={[{ label: "Genel Bakış", href: "/" }, { label: "Hesaplar" }]}
-      />
-      <Content />
-    </>
-  );
+  return <Content />;
 };
 
 export default AccountsPage;

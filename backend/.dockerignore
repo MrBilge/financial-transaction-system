@@ -1,0 +1,17 @@
+# Bağımlılıklar ve derleme çıktıları imaj içinde yeniden oluşturulur.
+node_modules
+dist
+coverage
+
+# Ortam değişkenleri imaja girmez; çalışma zamanında docker-compose'dan verilir.
+.env
+.env.*
+
+# Testler ve geliştirme dosyaları production imajında gerekmez.
+test
+**/*.spec.ts
+scripts
+README.md
+.prettierrc
+eslint.config.mjs
+*.log

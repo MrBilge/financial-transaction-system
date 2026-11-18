@@ -79,9 +79,6 @@ export const Sidebar = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="mb-2 px-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-          Menü
-        </p>
         <SidebarNavigation />
       </div>
 

@@ -12,9 +12,8 @@ export const metadata: Metadata = {
 // Login sayfası anında açılabilmelidir; geliştirme sırasında Next.js bunu doğrular.
 export const instant = true;
 
-// Login sayfası panel iskeletinin (kenar çubuğu, üst çubuk) dışında olduğu için
-// Breadcrumb içermez. Content hem URL'deki "next" parametresini (useSearchParams)
-// hem de sessionStorage'daki oturumu okuduğu için Suspense sınırı içinde render edilir.
+// Content hem URL'deki "next" parametresini (useSearchParams) hem de
+// sessionStorage'daki oturumu okuduğu için Suspense sınırı içinde render edilir.
 const LoginPage = () => {
   return (
     <Suspense

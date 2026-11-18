@@ -13,6 +13,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Docker imajı için yalnızca çalışmak üzere gereken dosyaları .next/standalone
+  // klasörüne çıkarır (bkz. frontend/Dockerfile).
+  output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
