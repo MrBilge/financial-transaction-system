@@ -5,9 +5,14 @@ import {
 } from '@nestjs/common';
 import { Account, Prisma } from '@prisma/client';
 import { randomInt } from 'node:crypto';
+import { toMoneyString } from '../common/money';
 import { Paginated, SNAPSHOT_READ, toPaginated } from '../common/pagination';
 import { CustomersService } from '../customers/customers.service';
-import { isPrismaError, PrismaErrorCode } from '../prisma/prisma-errors';
+import {
+  isPrismaError,
+  PrismaErrorCode,
+  retryOnUniqueViolation,
+} from '../prisma/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import {
@@ -23,7 +28,6 @@ import { UpdateAccountStatusDto } from './dto/update-account-status.dto';
 export type AccountResponse = Omit<Account, 'balance'> & { balance: string };
 
 const ACCOUNT_NUMBER_LENGTH = 16;
-const MAX_ACCOUNT_NUMBER_ATTEMPTS = 5;
 
 @Injectable()
 export class AccountsService {
@@ -40,19 +44,19 @@ export class AccountsService {
   async create({ customerId }: CreateAccountDto): Promise<AccountResponse> {
     await this.customersService.findOne(customerId);
 
-    for (let attempt = 1; attempt <= MAX_ACCOUNT_NUMBER_ATTEMPTS; attempt++) {
-      try {
-        const account = await this.prisma.account.create({
+    try {
+      const account = await retryOnUniqueViolation(() =>
+        this.prisma.account.create({
           data: { customerId, accountNumber: generateAccountNumber() },
-        });
-        return toAccountResponse(account);
-      } catch (error) {
-        if (!isPrismaError(error, PrismaErrorCode.UniqueConstraintFailed)) {
-          throw error;
-        }
+        }),
+      );
+      return toAccountResponse(account);
+    } catch (error) {
+      if (isPrismaError(error, PrismaErrorCode.UniqueConstraintFailed)) {
+        throw new InternalServerErrorException('Hesap numarası üretilemedi');
       }
+      throw error;
     }
-    throw new InternalServerErrorException('Hesap numarası üretilemedi');
   }
 
   async findAll(query: QueryAccountDto): Promise<Paginated<AccountResponse>> {
@@ -122,8 +126,7 @@ export class AccountsService {
 }
 
 function toAccountResponse(account: Account): AccountResponse {
-  // Decimal -> string: number dönüşümü yapılmadığı için hassasiyet korunur.
-  return { ...account, balance: account.balance.toFixed(2) };
+  return { ...account, balance: toMoneyString(account.balance) };
 }
 
 /** Sıfırla başlamayan, kriptografik olarak rastgele 16 haneli hesap numarası. */

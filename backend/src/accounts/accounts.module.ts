@@ -8,5 +8,7 @@ import { AccountsService } from './accounts.service';
   imports: [CustomersModule],
   controllers: [AccountsController],
   providers: [AccountsService],
+  // TransactionsModule hesap varlığını doğrulamak için kullanır.
+  exports: [AccountsService],
 })
 export class AccountsModule {}
