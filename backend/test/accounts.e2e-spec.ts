@@ -8,6 +8,7 @@ import { authorizedAgent, createTestApp, TestAgent } from './e2e-helpers';
 interface AccountBody {
   id: string;
   customerId: string;
+  customer: { id: string; firstName: string; lastName: string };
   accountNumber: string;
   balance: string;
   status: 'ACTIVE' | 'PASSIVE';
@@ -93,6 +94,35 @@ describe('Accounts API (e2e)', () => {
       const second = await openAccount(customerId);
 
       expect(first.accountNumber).not.toBe(second.accountNumber);
+    });
+
+    it('yanıtta müşteri adını döndürür; ad, soyad ve hesap numarasıyla aranabilir', async () => {
+      const account = await openAccount(customerId);
+      expect(account.customer).toEqual({
+        id: customerId,
+        firstName: 'Hesap',
+        lastName: 'Test',
+      });
+
+      // customerId ile sınırlandırılır; diğer test verileri sonucu etkilemez.
+      const search = async (term: string) =>
+        bodyOf<AccountListBody>(
+          await http()
+            .get('/accounts')
+            .query({ customerId, search: term })
+            .expect(200),
+        );
+
+      const byFullName = await search('hesap TEST');
+      expect(byFullName.data.map((a) => a.id)).toContain(account.id);
+      expect(byFullName.data[0].customer.firstName).toBe('Hesap');
+
+      const byNameAndNumber = await search(
+        `test ${account.accountNumber.slice(4, 12)}`,
+      );
+      expect(byNameAndNumber.data.map((a) => a.id)).toEqual([account.id]);
+
+      expect((await search('olmayanisim')).meta.total).toBe(0);
     });
 
     it('bulunamayan müşteri için 404 döndürür', async () => {

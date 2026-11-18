@@ -32,6 +32,22 @@ export class TransactionResponseDto implements TransactionResponse {
   })
   targetAccountId: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Kaynak hesap numarası (DEPOSIT için null)',
+    example: '4821093756120394',
+  })
+  sourceAccountNumber: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Hedef hesap numarası (WITHDRAWAL için null)',
+    example: '6179894025555092',
+  })
+  targetAccountNumber: string | null;
+
   @ApiMoneyProperty({ description: 'İşlem tutarı (TRY)', example: '150.75' })
   amount: string;
 

@@ -15,9 +15,15 @@ import {
 const ACCOUNT_ID = '7b1e4c2a-9d3f-4e5a-8b6c-1d2e3f4a5b6c';
 const CUSTOMER_ID = '3f1c2b8e-5d7a-4c1e-9b2f-1a2b3c4d5e6f';
 
-const account = (overrides: Partial<Account> = {}): Account => ({
+const CUSTOMER = { id: CUSTOMER_ID, firstName: 'Ayşe', lastName: 'Yılmaz' };
+const WITH_CUSTOMER = {
+  customer: { select: { id: true, firstName: true, lastName: true } },
+};
+
+const account = (overrides: Partial<Account> = {}) => ({
   id: ACCOUNT_ID,
   customerId: CUSTOMER_ID,
+  customer: CUSTOMER,
   accountNumber: '1234567890123456',
   balance: new Prisma.Decimal(0),
   status: 'ACTIVE',
@@ -129,8 +135,9 @@ describe('AccountsService', () => {
         where: {
           customerId: undefined,
           status: undefined,
-          accountNumber: undefined,
+          AND: [],
         },
+        include: WITH_CUSTOMER,
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         skip: 0,
         take: 10,
@@ -154,20 +161,29 @@ describe('AccountsService', () => {
         limit: 5,
         sortBy: 'balance',
         sortOrder: 'asc',
-        search: '1234',
+        search: 'ayşe  1234',
         customerId: CUSTOMER_ID,
         status: 'PASSIVE',
       });
 
       await service.findAll(query);
 
+      // Her kelime hesap numarası, ad veya soyaddan birinde geçmelidir.
+      const matchesWord = (word: string) => ({
+        OR: [
+          { accountNumber: { contains: word } },
+          { customer: { firstName: { contains: word, mode: 'insensitive' } } },
+          { customer: { lastName: { contains: word, mode: 'insensitive' } } },
+        ],
+      });
       const where = {
         customerId: CUSTOMER_ID,
         status: 'PASSIVE',
-        accountNumber: { contains: '1234' },
+        AND: [matchesWord('ayşe'), matchesWord('1234')],
       };
       expect(prisma.account.findMany).toHaveBeenCalledWith({
         where,
+        include: WITH_CUSTOMER,
         orderBy: [{ balance: 'asc' }, { id: 'asc' }],
         skip: 5,
         take: 5,
@@ -227,6 +243,11 @@ describe('AccountsService', () => {
       await expect(service.findOne(ACCOUNT_ID)).resolves.toMatchObject({
         id: ACCOUNT_ID,
         balance: '0.00',
+        customer: CUSTOMER,
+      });
+      expect(prisma.account.findUnique).toHaveBeenCalledWith({
+        where: { id: ACCOUNT_ID },
+        include: WITH_CUSTOMER,
       });
     });
 
@@ -250,6 +271,7 @@ describe('AccountsService', () => {
       expect(prisma.account.update).toHaveBeenCalledWith({
         where: { id: ACCOUNT_ID },
         data: { status: 'PASSIVE' },
+        include: WITH_CUSTOMER,
       });
       expect(result.status).toBe('PASSIVE');
     });

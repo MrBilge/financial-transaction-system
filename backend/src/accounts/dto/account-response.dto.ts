@@ -1,7 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { AccountStatus } from '@prisma/client';
 import { ApiMoneyProperty, PaginatedResponseDto } from '../../common/api-docs';
-import { AccountResponse } from '../accounts.service';
+import { AccountCustomerSummary, AccountResponse } from '../accounts.service';
+
+export class AccountCustomerSummaryDto implements AccountCustomerSummary {
+  @ApiProperty({
+    format: 'uuid',
+    example: '3f1c2b8e-5d7a-4c1e-9b2f-1a2b3c4d5e6f',
+  })
+  id: string;
+
+  @ApiProperty({ example: 'Ayşe' })
+  firstName: string;
+
+  @ApiProperty({ example: 'Yılmaz' })
+  lastName: string;
+}
 
 /** Swagger yanıt şeması; `implements` ile servisin döndürdüğü tiple uyumu derleme anında denetlenir. */
 export class AccountResponseDto implements AccountResponse {
@@ -16,6 +30,12 @@ export class AccountResponseDto implements AccountResponse {
     example: '3f1c2b8e-5d7a-4c1e-9b2f-1a2b3c4d5e6f',
   })
   customerId: string;
+
+  @ApiProperty({
+    type: AccountCustomerSummaryDto,
+    description: 'Hesap sahibi müşteri',
+  })
+  customer: AccountCustomerSummaryDto;
 
   @ApiProperty({
     example: '4821093756120394',

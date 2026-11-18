@@ -28,7 +28,25 @@ import { TransferDto } from './dto/transfer.dto';
 /** API yanıtındaki işlem; tutar 2 ondalık basamaklı string olarak döner. */
 export type TransactionResponse = Omit<Transaction, 'amount'> & {
   amount: string;
+  /** Kaynak hesabın numarası (DEPOSIT için null). */
+  sourceAccountNumber: string | null;
+  /** Hedef hesabın numarası (WITHDRAWAL için null). */
+  targetAccountNumber: string | null;
 };
+
+/**
+ * İşlem yanıtlarına kaynak ve hedef hesap numaraları eklenir. Prisma her
+ * ilişkiyi liste için tek bir ek sorguyla (WHERE id IN (...)) getirir; her
+ * işlem için ayrı sorgu atılmaz (N+1 yok).
+ */
+const WITH_ACCOUNT_NUMBERS = {
+  sourceAccount: { select: { accountNumber: true } },
+  targetAccount: { select: { accountNumber: true } },
+} satisfies Prisma.TransactionInclude;
+
+type TransactionWithAccountNumbers = Prisma.TransactionGetPayload<{
+  include: typeof WITH_ACCOUNT_NUMBERS;
+}>;
 
 /** Bir para hareketi: DEPOSIT yalnızca hedef, WITHDRAWAL yalnızca kaynak, TRANSFER ikisini de içerir. */
 interface MoneyMovement {
@@ -125,6 +143,7 @@ export class TransactionsService {
       [
         this.prisma.transaction.findMany({
           where,
+          include: WITH_ACCOUNT_NUMBERS,
           // id ikincil sıralama: aynı değere sahip kayıtlarda sayfalar arası tutarlılık.
           orderBy: [{ [sortBy]: sortOrder }, { id: 'asc' }],
           skip: (page - 1) * limit,
@@ -150,6 +169,7 @@ export class TransactionsService {
   async findOne(id: string): Promise<TransactionResponse> {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
+      include: WITH_ACCOUNT_NUMBERS,
     });
     if (!transaction) {
       throw new NotFoundException(`İşlem bulunamadı: ${id}`);
@@ -176,6 +196,7 @@ export class TransactionsService {
         return tx.transaction.update({
           where: { id: pending.id, status: TransactionStatus.PENDING },
           data: { status: TransactionStatus.SUCCESS },
+          include: WITH_ACCOUNT_NUMBERS,
         });
       }, MONEY_MOVEMENT_TX_OPTIONS);
       return toTransactionResponse(completed);
@@ -291,12 +312,18 @@ export class TransactionsService {
    * hatada (ör. bağlantı COMMIT sırasında koptu) işlem aslında SUCCESS olarak
    * commit edilmiş olabilir; bu koşul o kaydın üzerine yazılmasını engeller.
    */
-  private async markFailed(id: string, reason: string): Promise<Transaction> {
+  private async markFailed(
+    id: string,
+    reason: string,
+  ): Promise<TransactionWithAccountNumbers> {
     await this.prisma.transaction.updateMany({
       where: { id, status: TransactionStatus.PENDING },
       data: { status: TransactionStatus.FAILED, failureReason: reason },
     });
-    return this.prisma.transaction.findUniqueOrThrow({ where: { id } });
+    return this.prisma.transaction.findUniqueOrThrow({
+      where: { id },
+      include: WITH_ACCOUNT_NUMBERS,
+    });
   }
 
   private buildFilter(
@@ -346,8 +373,17 @@ export class TransactionsService {
   }
 }
 
-function toTransactionResponse(transaction: Transaction): TransactionResponse {
-  return { ...transaction, amount: toMoneyString(transaction.amount) };
+function toTransactionResponse({
+  sourceAccount,
+  targetAccount,
+  ...transaction
+}: TransactionWithAccountNumbers): TransactionResponse {
+  return {
+    ...transaction,
+    amount: toMoneyString(transaction.amount),
+    sourceAccountNumber: sourceAccount?.accountNumber ?? null,
+    targetAccountNumber: targetAccount?.accountNumber ?? null,
+  };
 }
 
 /** Ör. TRX-20261118-9F3A1C7B2E4D: tarih + 48 bit kriptografik rastgelelik. */

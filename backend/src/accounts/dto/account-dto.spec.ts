@@ -49,7 +49,7 @@ describe('Account DTOs', () => {
           sortBy: 'customerId',
           customerId: 'abc',
           status: 'DELETED',
-          search: '1'.repeat(35),
+          search: '1'.repeat(101),
         }),
       ).toEqual(
         expect.arrayContaining(['sortBy', 'search', 'customerId', 'status']),

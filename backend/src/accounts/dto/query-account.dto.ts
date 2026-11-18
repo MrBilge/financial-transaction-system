@@ -27,16 +27,17 @@ export class QueryAccountDto extends PaginationQueryDto {
   sortBy: AccountSortField = 'createdAt';
 
   @ApiPropertyOptional({
-    maxLength: 34,
-    example: '4821',
-    description: 'Hesap numarası içinde arama',
+    maxLength: 100,
+    example: 'ayşe 4821',
+    description:
+      'Hesap numarası, müşteri adı veya soyadı içinde arama. Birden fazla kelime girilirse her kelime bu alanlardan birinde geçmelidir.',
   })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString({ message: 'search metin olmalıdır' })
-  @MaxLength(34, { message: 'search en fazla 34 karakter olabilir' })
+  @MaxLength(100, { message: 'search en fazla 100 karakter olabilir' })
   search?: string;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Müşteriye göre filtre' })

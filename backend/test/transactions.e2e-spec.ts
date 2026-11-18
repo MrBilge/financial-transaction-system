@@ -10,6 +10,8 @@ interface TransactionBody {
   transactionNumber: string;
   sourceAccountId: string | null;
   targetAccountId: string | null;
+  sourceAccountNumber: string | null;
+  targetAccountNumber: string | null;
   amount: string;
   type: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER';
   status: 'PENDING' | 'SUCCESS' | 'FAILED';
@@ -157,11 +159,17 @@ describe('Transactions API (e2e)', () => {
 
       const res = await transfer(source, target, '125.50').expect(201);
 
+      const [sourceAccount, targetAccount] = await Promise.all([
+        prisma.account.findUniqueOrThrow({ where: { id: source } }),
+        prisma.account.findUniqueOrThrow({ where: { id: target } }),
+      ]);
       expect(bodyOf<TransactionBody>(res)).toMatchObject({
         type: 'TRANSFER',
         status: 'SUCCESS',
         sourceAccountId: source,
         targetAccountId: target,
+        sourceAccountNumber: sourceAccount.accountNumber,
+        targetAccountNumber: targetAccount.accountNumber,
       });
       expect(await balanceOf(source)).toBe('374.50');
       expect(await balanceOf(target)).toBe('225.50');

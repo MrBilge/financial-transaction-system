@@ -24,9 +24,13 @@ interface LockedRow {
   balance: Prisma.Decimal;
 }
 
-const transactionRecord = (
-  overrides: Partial<Transaction> = {},
-): Transaction => ({
+const WITH_ACCOUNT_NUMBERS = {
+  sourceAccount: { select: { accountNumber: true } },
+  targetAccount: { select: { accountNumber: true } },
+};
+
+/** Prisma'nın include ile döndürdüğü işlem kaydı (hesap numaralarıyla). */
+const transactionRecord = (overrides: Partial<Transaction> = {}) => ({
   id: TX_ID,
   transactionNumber: 'TRX-20261118-AAAAAAAAAAAA',
   sourceAccountId: null,
@@ -36,6 +40,8 @@ const transactionRecord = (
   status: 'PENDING',
   failureReason: null,
   createdAt: new Date('2026-11-18T10:00:00Z'),
+  sourceAccount: null,
+  targetAccount: { accountNumber: '1111222233334444' },
   ...overrides,
 });
 
@@ -142,6 +148,7 @@ describe('TransactionsService', () => {
       expect(tx.transaction.update).toHaveBeenCalledWith({
         where: { id: TX_ID, status: 'PENDING' },
         data: { status: 'SUCCESS' },
+        include: WITH_ACCOUNT_NUMBERS,
       });
       expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
         isolationLevel: 'ReadCommitted',
@@ -149,7 +156,14 @@ describe('TransactionsService', () => {
         timeout: 10000,
       });
       // Mock kayıt tutarı 100; yanıtta string ve 2 ondalık basamaklı olmalı.
-      expect(result).toMatchObject({ status: 'SUCCESS', amount: '100.00' });
+      expect(result).toMatchObject({
+        status: 'SUCCESS',
+        amount: '100.00',
+        sourceAccountNumber: null,
+        targetAccountNumber: '1111222233334444',
+      });
+      // Prisma ilişki alanları yanıta sızmaz; yalnızca hesap numaraları döner.
+      expect(result).not.toHaveProperty('targetAccount');
     });
 
     it('hedef hesap pasifse 422 döner ve işlem FAILED kaydedilir', async () => {
@@ -346,6 +360,7 @@ describe('TransactionsService', () => {
       };
       expect(prisma.transaction.findMany).toHaveBeenCalledWith({
         where,
+        include: WITH_ACCOUNT_NUMBERS,
         orderBy: [{ amount: 'asc' }, { id: 'asc' }],
         skip: 5,
         take: 5,

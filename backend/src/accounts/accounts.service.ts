@@ -22,10 +22,31 @@ import {
 import { UpdateAccountStatusDto } from './dto/update-account-status.dto';
 
 /**
+ * Hesap yanıtlarına müşterinin adı eklenir. Prisma ilişkiyi liste için tek bir
+ * ek sorguyla (WHERE id IN (...)) getirir; her hesap için ayrı sorgu atılmaz (N+1 yok).
+ */
+const WITH_CUSTOMER = {
+  customer: { select: { id: true, firstName: true, lastName: true } },
+} satisfies Prisma.AccountInclude;
+
+type AccountWithCustomer = Prisma.AccountGetPayload<{
+  include: typeof WITH_CUSTOMER;
+}>;
+
+export interface AccountCustomerSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+/**
  * API yanıtındaki hesap. Bakiye, hassasiyet kaybı olmasın diye JavaScript
  * number'a çevrilmeden 2 ondalık basamaklı string olarak döner (ör. "1250.50").
  */
-export type AccountResponse = Omit<Account, 'balance'> & { balance: string };
+export type AccountResponse = Omit<Account, 'balance'> & {
+  balance: string;
+  customer: AccountCustomerSummary;
+};
 
 const ACCOUNT_NUMBER_LENGTH = 16;
 
@@ -48,6 +69,7 @@ export class AccountsService {
       const account = await retryOnUniqueViolation(() =>
         this.prisma.account.create({
           data: { customerId, accountNumber: generateAccountNumber() },
+          include: WITH_CUSTOMER,
         }),
       );
       return toAccountResponse(account);
@@ -65,13 +87,14 @@ export class AccountsService {
     const where: Prisma.AccountWhereInput = {
       customerId,
       status,
-      accountNumber: search ? { contains: search } : undefined,
+      AND: buildSearchFilter(search),
     };
 
     const [accounts, total] = await this.prisma.$transaction(
       [
         this.prisma.account.findMany({
           where,
+          include: WITH_CUSTOMER,
           // id ikincil sıralama: aynı değere sahip kayıtlarda sayfalar arası tutarlılık.
           orderBy: [{ [sortBy]: sortOrder }, { id: 'asc' }],
           skip: (page - 1) * limit,
@@ -95,7 +118,10 @@ export class AccountsService {
   }
 
   async findOne(id: string): Promise<AccountResponse> {
-    const account = await this.prisma.account.findUnique({ where: { id } });
+    const account = await this.prisma.account.findUnique({
+      where: { id },
+      include: WITH_CUSTOMER,
+    });
     if (!account) {
       throw this.notFound(id);
     }
@@ -110,6 +136,7 @@ export class AccountsService {
       const account = await this.prisma.account.update({
         where: { id },
         data: { status },
+        include: WITH_CUSTOMER,
       });
       return toAccountResponse(account);
     } catch (error) {
@@ -125,8 +152,24 @@ export class AccountsService {
   }
 }
 
-function toAccountResponse(account: Account): AccountResponse {
+function toAccountResponse(account: AccountWithCustomer): AccountResponse {
   return { ...account, balance: toMoneyString(account.balance) };
+}
+
+/**
+ * Aramadaki her kelime hesap numarası, müşteri adı veya soyadından birinde
+ * geçmelidir. Böylece "ayşe 4821" gibi birleşik aramalar da çalışır.
+ */
+function buildSearchFilter(search?: string): Prisma.AccountWhereInput[] {
+  const words = search ? search.split(/\s+/).filter(Boolean) : [];
+
+  return words.map((word) => ({
+    OR: [
+      { accountNumber: { contains: word } },
+      { customer: { firstName: { contains: word, mode: 'insensitive' } } },
+      { customer: { lastName: { contains: word, mode: 'insensitive' } } },
+    ],
+  }));
 }
 
 /** Sıfırla başlamayan, kriptografik olarak rastgele 16 haneli hesap numarası. */
