@@ -1,11 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { authorizedAgent, createTestApp, TestAgent } from './e2e-helpers';
 
 interface AccountBody {
   id: string;
@@ -33,12 +31,13 @@ const bodyOf = <T>(res: request.Response): T => res.body as T;
  */
 describe('Accounts API (e2e)', () => {
   let app: INestApplication<App>;
+  let api: TestAgent;
   let prisma: PrismaService;
   let customerId: string;
   let otherCustomerId: string;
 
   const tag = randomBytes(6).toString('hex');
-  const http = () => request(app.getHttpServer());
+  const http = () => api;
 
   const openAccount = async (forCustomer: string): Promise<AccountBody> =>
     bodyOf<AccountBody>(
@@ -49,12 +48,8 @@ describe('Accounts API (e2e)', () => {
     );
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleRef.createNestApplication();
-    configureApp(app);
-    await app.init();
+    app = await createTestApp();
+    api = await authorizedAgent(app);
     prisma = app.get(PrismaService);
 
     const [customer, other] = await Promise.all(

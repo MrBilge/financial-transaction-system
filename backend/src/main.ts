@@ -1,18 +1,24 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
+import { EnvironmentVariables } from './config/env.validation';
+import { SWAGGER_PATH } from './swagger.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   configureApp(app);
 
-  app.enableCors({
-    origin: 'http://localhost:3000',
-    credentials: true,
-  });
+  const port = app
+    .get(ConfigService<EnvironmentVariables, true>)
+    .get('PORT', { infer: true });
+  await app.listen(port);
 
-  await app.listen(process.env.PORT ?? 3001);
+  Logger.log(
+    `Uygulama ${port} portunda çalışıyor. API dokümantasyonu: /${SWAGGER_PATH}`,
+    'Bootstrap',
+  );
 }
 
 bootstrap().catch((error: unknown) => {

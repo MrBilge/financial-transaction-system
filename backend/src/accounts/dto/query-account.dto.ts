@@ -1,4 +1,4 @@
-import { OmitType } from '@nestjs/mapped-types';
+import { ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { AccountStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
@@ -19,13 +19,18 @@ export const ACCOUNT_SORT_FIELDS = [
 export type AccountSortField = (typeof ACCOUNT_SORT_FIELDS)[number];
 
 export class QueryAccountDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: ACCOUNT_SORT_FIELDS, default: 'createdAt' })
   @IsOptional()
   @IsIn(ACCOUNT_SORT_FIELDS, {
     message: `sortBy şunlardan biri olmalıdır: ${ACCOUNT_SORT_FIELDS.join(', ')}`,
   })
   sortBy: AccountSortField = 'createdAt';
 
-  /** Hesap numarası içinde arama. */
+  @ApiPropertyOptional({
+    maxLength: 34,
+    example: '4821',
+    description: 'Hesap numarası içinde arama',
+  })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -34,10 +39,16 @@ export class QueryAccountDto extends PaginationQueryDto {
   @MaxLength(34, { message: 'search en fazla 34 karakter olabilir' })
   search?: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: 'Müşteriye göre filtre' })
   @IsOptional()
   @IsUUID('all', { message: 'customerId geçerli bir UUID olmalıdır' })
   customerId?: string;
 
+  @ApiPropertyOptional({
+    enum: Object.values(AccountStatus),
+    enumName: 'AccountStatus',
+    description: 'Duruma göre filtre',
+  })
   @IsOptional()
   @IsEnum(AccountStatus, {
     message: `status şunlardan biri olmalıdır: ${Object.values(AccountStatus).join(', ')}`,
@@ -47,7 +58,8 @@ export class QueryAccountDto extends PaginationQueryDto {
 
 /**
  * GET /customers/:id/accounts için: müşteri path'ten gelir, bu yüzden
- * query'de customerId kabul edilmez.
+ * query'de customerId kabul edilmez. (@nestjs/swagger'ın OmitType'ı
+ * validation ve Swagger metadata'sını birlikte taşır.)
  */
 export class QueryCustomerAccountsDto extends OmitType(QueryAccountDto, [
   'customerId',

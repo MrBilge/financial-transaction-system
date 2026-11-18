@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
@@ -18,6 +19,12 @@ const trimAndLowercase = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 export class CreateCustomerDto {
+  @ApiProperty({
+    example: 'Ayşe',
+    maxLength: 100,
+    description:
+      'Yalnızca harf; kelimeler arasında boşluk, kesme veya tire olabilir',
+  })
   @Transform(trim)
   @IsString({ message: 'firstName metin olmalıdır' })
   @IsNotEmpty({ message: 'firstName boş olamaz' })
@@ -25,6 +32,12 @@ export class CreateCustomerDto {
   @Matches(NAME_PATTERN, { message: 'firstName yalnızca harf içermelidir' })
   firstName: string;
 
+  @ApiProperty({
+    example: 'Yılmaz',
+    maxLength: 100,
+    description:
+      'Yalnızca harf; kelimeler arasında boşluk, kesme veya tire olabilir',
+  })
   @Transform(trim)
   @IsString({ message: 'lastName metin olmalıdır' })
   @IsNotEmpty({ message: 'lastName boş olamaz' })
@@ -32,6 +45,12 @@ export class CreateCustomerDto {
   @Matches(NAME_PATTERN, { message: 'lastName yalnızca harf içermelidir' })
   lastName: string;
 
+  @ApiProperty({
+    example: 'ayse.yilmaz@example.com',
+    format: 'email',
+    maxLength: 255,
+    description: 'Benzersizdir; küçük harfe çevrilerek kaydedilir',
+  })
   @Transform(trimAndLowercase)
   @IsEmail({}, { message: 'email geçerli bir e-posta adresi olmalıdır' })
   @MaxLength(255, { message: 'email en fazla 255 karakter olabilir' })

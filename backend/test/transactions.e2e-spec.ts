@@ -1,11 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { authorizedAgent, createTestApp, TestAgent } from './e2e-helpers';
 
 interface TransactionBody {
   id: string;
@@ -40,12 +38,13 @@ jest.setTimeout(30_000);
  */
 describe('Transactions API (e2e)', () => {
   let app: INestApplication<App>;
+  let api: TestAgent;
   let prisma: PrismaService;
   let customerId: string;
   const accountIds: string[] = [];
   const tag = randomBytes(6).toString('hex');
 
-  const http = () => request(app.getHttpServer());
+  const http = () => api;
 
   const openAccount = async (): Promise<string> => {
     const res = await http().post('/accounts').send({ customerId }).expect(201);
@@ -84,12 +83,8 @@ describe('Transactions API (e2e)', () => {
     });
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleRef.createNestApplication();
-    configureApp(app);
-    await app.init();
+    app = await createTestApp();
+    api = await authorizedAgent(app);
     prisma = app.get(PrismaService);
 
     const customer = await prisma.customer.create({

@@ -1,11 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { authorizedAgent, createTestApp, TestAgent } from './e2e-helpers';
 
 interface CustomerBody {
   id: string;
@@ -34,6 +32,7 @@ const firstNames = (res: request.Response) =>
  */
 describe('Customers API (e2e)', () => {
   let app: INestApplication<App>;
+  let api: TestAgent;
   let prisma: PrismaService;
 
   // Yalnızca harflerden oluşan, bu test çalıştırmasına özgü etiket.
@@ -43,12 +42,8 @@ describe('Customers API (e2e)', () => {
   const email = (name: string) => `${name}.${tag}@example.com`;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleRef.createNestApplication();
-    configureApp(app);
-    await app.init();
+    app = await createTestApp();
+    api = await authorizedAgent(app);
     prisma = app.get(PrismaService);
   });
 
@@ -57,8 +52,7 @@ describe('Customers API (e2e)', () => {
     await app.close();
   });
 
-  const createCustomer = (body: object) =>
-    request(app.getHttpServer()).post('/customers').send(body);
+  const createCustomer = (body: object) => api.post('/customers').send(body);
 
   describe('POST /customers', () => {
     it('müşteri oluşturur ve alanları normalize eder (201)', async () => {
@@ -123,22 +117,18 @@ describe('Customers API (e2e)', () => {
         email: email('can'),
       }).expect(201);
 
-      const res = await request(app.getHttpServer())
+      const res = await api
         .get(`/customers/${bodyOf<CustomerBody>(created).id}`)
         .expect(200);
       expect(res.body).toEqual(created.body);
     });
 
     it('bulunamayan müşteri için 404 döndürür', async () => {
-      await request(app.getHttpServer())
-        .get(`/customers/${randomUUID()}`)
-        .expect(404);
+      await api.get(`/customers/${randomUUID()}`).expect(404);
     });
 
     it('geçersiz UUID için 400 döndürür', async () => {
-      await request(app.getHttpServer())
-        .get('/customers/not-a-uuid')
-        .expect(400);
+      await api.get('/customers/not-a-uuid').expect(400);
     });
   });
 
@@ -155,7 +145,7 @@ describe('Customers API (e2e)', () => {
     });
 
     it('gönderilen alanları günceller (200)', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await api
         .patch(`/customers/${id}`)
         .send({ lastName: 'Aydın' })
         .expect(200);
@@ -168,31 +158,28 @@ describe('Customers API (e2e)', () => {
     });
 
     it('başka müşteriye ait e-postada 409 döndürür', async () => {
-      await request(app.getHttpServer())
+      await api
         .patch(`/customers/${id}`)
         .send({ email: email('ayse') })
         .expect(409);
     });
 
     it('geçersiz alanda 400 döndürür', async () => {
-      await request(app.getHttpServer())
+      await api
         .patch(`/customers/${id}`)
         .send({ email: 'gecersiz' })
         .expect(400);
     });
 
     it('bulunamayan müşteri için 404 döndürür', async () => {
-      await request(app.getHttpServer())
+      await api
         .patch(`/customers/${randomUUID()}`)
         .send({ lastName: 'Aydın' })
         .expect(404);
     });
 
     it('geçersiz UUID için 400 döndürür', async () => {
-      await request(app.getHttpServer())
-        .patch('/customers/123')
-        .send({ lastName: 'Aydın' })
-        .expect(400);
+      await api.patch('/customers/123').send({ lastName: 'Aydın' }).expect(400);
     });
   });
 
@@ -210,7 +197,7 @@ describe('Customers API (e2e)', () => {
     });
 
     it('büyük/küçük harf duyarsız arar, sıralar ve sayfalar', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await api
         .get('/customers')
         .query({
           search: lastName.toUpperCase(),
@@ -229,7 +216,7 @@ describe('Customers API (e2e)', () => {
         totalPages: 2,
       });
 
-      const page2 = await request(app.getHttpServer())
+      const page2 = await api
         .get('/customers')
         .query({
           search: lastName,
@@ -243,7 +230,7 @@ describe('Customers API (e2e)', () => {
     });
 
     it('e-posta üzerinden arar', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await api
         .get('/customers')
         .query({ search: `liste-merve.${tag}` })
         .expect(200);
@@ -253,7 +240,7 @@ describe('Customers API (e2e)', () => {
     });
 
     it('geçersiz sorgu parametrelerinde 400 döndürür', async () => {
-      await request(app.getHttpServer())
+      await api
         .get('/customers')
         .query({ page: 0, limit: 500, sortBy: 'password' })
         .expect(400);
