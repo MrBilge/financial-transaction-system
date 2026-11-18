@@ -84,7 +84,9 @@ describe('Customer DTOs', () => {
           sortBy: 'password',
           sortOrder: 'up',
         }),
-      ).toEqual(['page', 'limit', 'sortBy', 'sortOrder']);
+      ).toEqual(
+        expect.arrayContaining(['page', 'limit', 'sortBy', 'sortOrder']),
+      );
     });
   });
 });

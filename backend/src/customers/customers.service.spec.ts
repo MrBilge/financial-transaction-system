@@ -98,6 +98,9 @@ describe('CustomersService', () => {
         data: [customer],
         meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
       });
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Array), {
+        isolationLevel: 'RepeatableRead',
+      });
     });
 
     it('arama, sıralama ve sayfa parametrelerini uygular', async () => {

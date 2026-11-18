@@ -9,7 +9,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { Customer } from '@prisma/client';
-import { CustomersService, PaginatedCustomers } from './customers.service';
+import { Paginated } from '../common/pagination';
+import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -24,7 +25,7 @@ export class CustomersController {
   }
 
   @Get()
-  findAll(@Query() query: QueryCustomerDto): Promise<PaginatedCustomers> {
+  findAll(@Query() query: QueryCustomerDto): Promise<Paginated<Customer>> {
     return this.customersService.findAll(query);
   }
 

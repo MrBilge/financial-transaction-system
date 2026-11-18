@@ -4,24 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Customer, Prisma } from '@prisma/client';
+import { Paginated, SNAPSHOT_READ, toPaginated } from '../common/pagination';
+import { isPrismaError, PrismaErrorCode } from '../prisma/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
-
-export interface PaginatedCustomers {
-  data: Customer[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-// Prisma hata kodları: https://www.prisma.io/docs/orm/reference/error-reference
-const UNIQUE_CONSTRAINT_FAILED = 'P2002';
-const RECORD_NOT_FOUND = 'P2025';
 
 @Injectable()
 export class CustomersService {
@@ -35,25 +23,25 @@ export class CustomersService {
     }
   }
 
-  async findAll(query: QueryCustomerDto): Promise<PaginatedCustomers> {
+  async findAll(query: QueryCustomerDto): Promise<Paginated<Customer>> {
     const { page, limit, sortBy, sortOrder, search } = query;
     const where = this.buildSearchFilter(search);
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.customer.findMany({
-        where,
-        // id ikincil sıralama: aynı değere sahip kayıtlarda sayfalar arası tutarlılık.
-        orderBy: [{ [sortBy]: sortOrder }, { id: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.customer.count({ where }),
-    ]);
+    const [data, total] = await this.prisma.$transaction(
+      [
+        this.prisma.customer.findMany({
+          where,
+          // id ikincil sıralama: aynı değere sahip kayıtlarda sayfalar arası tutarlılık.
+          orderBy: [{ [sortBy]: sortOrder }, { id: 'asc' }],
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        this.prisma.customer.count({ where }),
+      ],
+      SNAPSHOT_READ,
+    );
 
-    return {
-      data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return toPaginated(data, total, query);
   }
 
   async findOne(id: string): Promise<Customer> {
@@ -88,13 +76,11 @@ export class CustomersService {
 
   /** Bilinen Prisma hatalarını uygun HTTP hatalarına çevirir. */
   private translateError(error: unknown, id?: string): unknown {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === UNIQUE_CONSTRAINT_FAILED) {
-        return new ConflictException('Bu e-posta adresi zaten kullanılıyor');
-      }
-      if (error.code === RECORD_NOT_FOUND && id) {
-        return this.notFound(id);
-      }
+    if (isPrismaError(error, PrismaErrorCode.UniqueConstraintFailed)) {
+      return new ConflictException('Bu e-posta adresi zaten kullanılıyor');
+    }
+    if (isPrismaError(error, PrismaErrorCode.RecordNotFound) && id) {
+      return this.notFound(id);
     }
     return error;
   }

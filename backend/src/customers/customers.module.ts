@@ -6,5 +6,7 @@ import { CustomersService } from './customers.service';
 @Module({
   controllers: [CustomersController],
   providers: [CustomersService],
+  // AccountsModule müşteri varlığını doğrulamak için kullanır.
+  exports: [CustomersService],
 })
 export class CustomersModule {}
