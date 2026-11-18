@@ -39,3 +39,4 @@ Thumbs.db
 # Next.js / Vercel
 next-env.d.ts
 .vercel
+.claude/
