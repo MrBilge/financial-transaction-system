@@ -7,6 +7,19 @@ Sistem iki uygulamadan oluşur:
 - **Backend:** NestJS + Prisma + PostgreSQL ile geliştirilmiş, JWT ile korunan REST API
 - **Frontend:** Next.js + React ile geliştirilmiş, Türkçe yönetici paneli
 
+## Hızlı Başlangıç
+
+Docker Desktop çalışırken proje kök dizininde:
+
+```bash
+cp .env.example .env
+```
+```bash
+docker compose up --build
+```
+
+Ortam değişkenlerini elle doldurmanız gerekmez; `.env.example` değerleri lokal demo için hazırdır. İlk kurulumda veritabanı örnek verilerle (10 müşteri, 20 hesap, 100 işlem) otomatik olarak doldurulur (bkz. [Örnek Veriler (Seed)](#örnek-veriler-seed)). Servisler ayağa kalktıktan sonra `http://localhost:3000` adresinden **`admin` / `ChangeMe!2026`** ile giriş yapabilirsiniz. Swagger: `http://localhost:3001/api/docs`. Docker'sız çalıştırma için [Lokal Kurulum ve Çalıştırma](#lokal-kurulum-ve-çalıştırma) bölümüne bakın.
+
 ---
 
 ## İçindekiler
@@ -25,10 +38,11 @@ Sistem iki uygulamadan oluşur:
 12. [API Endpoint'leri ve Swagger](#api-endpointleri-ve-swagger)
 13. [Lokal Kurulum ve Çalıştırma](#lokal-kurulum-ve-çalıştırma)
 14. [Docker ile Kurulum ve Çalıştırma](#docker-ile-kurulum-ve-çalıştırma)
-15. [Ortam Değişkenleri](#ortam-değişkenleri)
-16. [Demo Giriş Bilgileri](#demo-giriş-bilgileri)
-17. [Testler](#testler)
-18. [Mevcut Sınırlamalar ve Gelecek Geliştirmeler](#mevcut-sınırlamalar-ve-gelecek-geliştirmeler)
+15. [Örnek Veriler (Seed)](#örnek-veriler-seed)
+16. [Ortam Değişkenleri](#ortam-değişkenleri)
+17. [Demo Giriş Bilgileri](#demo-giriş-bilgileri)
+18. [Testler](#testler)
+19. [Mevcut Sınırlamalar ve Gelecek Geliştirmeler](#mevcut-sınırlamalar-ve-gelecek-geliştirmeler)
 
 ---
 
@@ -132,7 +146,8 @@ financial-transaction-system/
 │   ├── Dockerfile
 │   ├── prisma/
 │   │   ├── schema.prisma       # Veri modeli
-│   │   └── migrations/         # SQL migration'ları (CHECK constraint'ler dahil)
+│   │   ├── migrations/         # SQL migration'ları (CHECK constraint'ler dahil)
+│   │   └── seed.js             # Demo örnek verileri (yalnızca boş veritabanına)
 │   ├── scripts/
 │   │   └── hash-password.js    # Yönetici parolası için bcrypt hash üretir
 │   ├── src/
@@ -356,7 +371,7 @@ Temel HTTP durum kodları:
    cp frontend/.env.example frontend/.env.local
    ```
 
-   `backend/.env` içindeki `DATABASE_URL`'deki kullanıcı adı ve parola, kök `.env`'deki `POSTGRES_USER` ve `POSTGRES_PASSWORD` ile aynı olmalıdır. `JWT_SECRET` değerini değiştirin.
+   `.env.example` dosyalarındaki değerler lokal demo ortamı için birbiriyle uyumludur ve **hiçbir değişiklik yapmadan** kullanılabilir. Değerleri değiştirirseniz `backend/.env` içindeki `DATABASE_URL`'deki kullanıcı adı ve parola, kök `.env`'deki `POSTGRES_USER` ve `POSTGRES_PASSWORD` ile aynı kalmalıdır.
 
 2. **PostgreSQL'i başlatın:**
 
@@ -367,7 +382,7 @@ Temel HTTP durum kodları:
 3. **Backend'i hazırlayıp çalıştırın** (`npm install`, Prisma Client'ı da üretir):
 
    ```bash
-   cd backend && npm install && npx prisma migrate deploy && npm run start:dev
+   cd backend && npm install && npx prisma migrate deploy && npm run db:seed && npm run start:dev
    ```
 
 4. **Frontend'i başka bir terminalde çalıştırın:**
@@ -383,7 +398,7 @@ Temel HTTP durum kodları:
 
 ## Docker ile Kurulum ve Çalıştırma
 
-1. **Ortam dosyasını oluşturun** ve en azından `JWT_SECRET` ile `POSTGRES_PASSWORD` değerlerini değiştirin:
+1. **Ortam dosyasını oluşturun** (lokal demo için değerleri değiştirmeniz gerekmez):
 
    ```bash
    cp .env.example .env
@@ -398,7 +413,7 @@ Temel HTTP durum kodları:
    | Servis | Görevi |
    |---|---|
    | `postgres` | PostgreSQL 16; veriler `postgres_data` volume'unda kalıcıdır |
-   | `migrate` | `prisma migrate deploy` ile bekleyen migration'ları uygular ve çıkar; mevcut verileri silmez |
+   | `migrate` | `prisma migrate deploy` ile bekleyen migration'ları uygular, veritabanı boşsa örnek verileri yükler (seed) ve çıkar; mevcut verileri silmez |
    | `backend` | NestJS API — `http://localhost:3001` |
    | `frontend` | Next.js paneli — `http://localhost:3000` |
 
@@ -415,6 +430,22 @@ Temel HTTP durum kodları:
 - **Portlar:** Portlar `.env` içindeki `BACKEND_PORT` ve `FRONTEND_PORT` ile değiştirilebilir. CORS izni ve frontend'in kullandığı API adresi bu portlara göre otomatik ayarlanır.
 - **`NEXT_PUBLIC_API_URL`:** Bu değer frontend imajına build sırasında gömülür. Backend adresini değiştirirseniz `--build` ile yeniden derleyin.
 - **Hassas bilgiler:** `.env` dosyaları imajlara kopyalanmaz; değerler çalışma zamanında Docker Compose tarafından verilir.
+
+## Örnek Veriler (Seed)
+
+Değerlendirme ve deneme kolaylığı için [`backend/prisma/seed.js`](backend/prisma/seed.js) veritabanına hazır demo verileri ekler:
+
+| Veri | Adet | Ayrıntı |
+|---|---|---|
+| Müşteri | 10 | `@example.com` uzantılı örnek e-posta adresleriyle |
+| Banka hesabı | 20 | Müşteri başına 1–3 hesap; 18 `ACTIVE`, 2 `PASSIVE` |
+| Finansal işlem | 100 | Para yatırma, çekme ve transfer; başarılı ve başarısız (`Yetersiz bakiye`, `Kaynak/Hedef hesap aktif değil`) işlemler |
+
+- **Ne zaman çalışır:** Docker Compose'da `migrate` servisi migration'lardan hemen sonra seed'i otomatik çalıştırır. Docker kullanmadan çalıştırmak için `cd backend && npm run db:seed`.
+- **Tekrar çalıştırma güvenlidir:** Seed yalnızca veritabanı **boşsa** (hiç müşteri, hesap ve işlem yoksa) veri ekler. Veritabanında herhangi bir kayıt varsa hiçbir şey yazmadan çıkar. Bu nedenle `docker compose up` her çalıştırıldığında kayıtlar çoğalmaz, mevcut veriler silinmez veya değiştirilmez. Tüm ekleme tek bir veritabanı transaction'ında yapılır (ya hepsi ya hiçbiri) ve bir advisory lock aynı anda başlatılan iki seed'in birlikte veri eklemesini engeller.
+- **Tutarlılık:** İşlem geçmişi kronolojik olarak simüle edilir ve uygulamadaki iş kuralları aynı sırayla uygulanır: kaynak hesap aktif mi, hedef hesap aktif mi, bakiye yeterli mi. Kuralı ihlal eden işlem uygulamadaki hata nedeniyle `FAILED` olarak kaydedilir ve bakiyeyi değiştirmez. Böylece her hesabın bakiyesi, başarılı gelen işlemlerin toplamından başarılı giden işlemlerin toplamı çıkarılarak elde edilen değere eşittir. Bakiye hiçbir anda negatife düşmez. Pasif hesaplarda, pasife alınma tarihinden sonra başarılı işlem yoktur.
+- **Tarihler:** İşlemler, seed'in çalıştığı andan geriye doğru yaklaşık son 6 aya yayılır. Bu sayede raporlar ve tarih filtreleri güncel veri gösterir. Veriler sabit bir tohumla üretildiği için her kurulumda aynı müşteriler, tutarlar ve işlem dağılımı oluşur.
+- **Örnek verileri yeniden yüklemek için** veritabanını sıfırlamanız gerekir. Docker'da `docker compose down -v` ve ardından `docker compose up` komutlarını çalıştırın. **Dikkat:** `-v` bayrağı tüm verileri siler.
 
 ## Ortam Değişkenleri
 
@@ -455,13 +486,13 @@ cd backend && npm run auth:hash-password -- "yeni-parola"
 
 ## Demo Giriş Bilgileri
 
-`.env.example` dosyalarındaki demo hash ile:
+`.env.example` dosyaları kopyalanıp değiştirilmeden kullanıldığında panele (`http://localhost:3000`) şu bilgilerle giriş yapılır:
 
 | Kullanıcı adı | Parola |
 |---|---|
 | `admin` | `ChangeMe!2026` |
 
-> Bu bilgiler yalnızca yerel/demo kullanım içindir. Gerçek bir ortamda `ADMIN_PASSWORD_HASH` ve `JWT_SECRET` mutlaka değiştirilmelidir.
+> **Güvenlik notu:** `.env.example` dosyalarındaki değerler (`POSTGRES_PASSWORD=change_me`, örnek `JWT_SECRET`, demo parola hash'i) herkese açık, **yalnızca yerel demo** amaçlı örnek değerlerdir; gerçek bir gizli bilgi içermez. Gerçek `.env` dosyaları `.gitignore` ile Git'in dışında tutulur. Projeyi yerel demo dışında bir ortamda çalıştıracaksanız `POSTGRES_PASSWORD`, `JWT_SECRET` ve `ADMIN_PASSWORD_HASH` değerlerini mutlaka değiştirin.
 
 ## Testler
 
